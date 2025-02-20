@@ -19,15 +19,15 @@ renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
 
 
 //Playerinfo
-let playerinfo = [
-    {
-        name: 'Player 1',
-        color: 'blue',
-        size: 1,
-        x: 0,
-        y: 0,
-    },    
-]
+let playerinfo = {
+    // {
+    //     name: 'Player 1',
+    //     color: 'blue',
+    //     size: 1,
+    //     x: 0,
+    //     y: 0,
+    // },    
+}
 const draggableObjects = [];
 
 //// CONTROLS
@@ -70,11 +70,12 @@ dragControls.addEventListener('drag', function (event) {
     // You can do things here as the object is being dragged
     // For example, update the player's position or log the position:
     console.log(event.object.position);
+    console.log(getPlayerNameByCubeIndex(draggableObjects.indexOf(event.object)));
 
     socket.emit('move_figure', {
-        name: playerinfo[draggableObjects.indexOf(event.object)].name,
+        name: getPlayerNameByCubeIndex(draggableObjects.indexOf(event.object)),
         x: event.object.position.x,
-        y: event.object.position.y,
+        y: event.object.position.z,
     });
 });
 
@@ -85,23 +86,48 @@ dragControls.addEventListener('drag', function (event) {
 //////
 
 
+function getPlayerNameByCubeIndex(cubeIndex) {
+    return Object.keys(playerinfo).find(name => playerinfo[name]['cube_index'] === cubeIndex) || null;
+}
+
 
 function makeCube(player) {
     const geometry = new THREE.BoxGeometry(player.size, player.size, player.size);
-    const material = new THREE.MeshBasicMaterial({ color: player.color });
+    const material = new THREE.MeshBasicMaterial({ color: new THREE.Color(player.color) });
     const cube = new THREE.Mesh(geometry, material);
-    cube.position.set(player.x, player.y, 0);
+    cube.position.set(player.x, 0, player.y);
     scene.add(cube);
 
-    draggableObjects.push(cube);
+    draggableObjects.push(cube)
+    
+    return draggableObjects.length - 1;
+
 }
 
 function updatePlayer(player) {
     console.log('Updating player:', player);
-    const playerIndex = playerinfo.findIndex(p => p.name === player.name);
-    playerinfo[playerIndex] = player;
 
-    makeCube(player);
+    console.log(
+        !(player.name in playerinfo)
+    )
+
+    if (!(player.name in playerinfo) || typeof playerinfo[player.name] !== 'object') {
+        playerinfo[player.name] = {}; // Ensure it's an object
+    }
+
+    var cube_index = makeCube(player);
+    playerinfo[player.name]['cube_index'] = cube_index;
+
+    // Merge player data into the existing object
+    Object.assign(playerinfo[player.name], player);
+}
+
+
+function movePlayer(player) {
+    var i = playerinfo[player.name].cube_index;
+
+    draggableObjects[i].position.x = player.x;
+    draggableObjects[i].position.z = player.y;
 }
 
 function updatePlayers(players) {
@@ -119,10 +145,10 @@ function removePlayer(player) {
 
 
 
-const geometry = new THREE.BoxGeometry();
-const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
-const cube = new THREE.Mesh(geometry, material);
-scene.add(cube);
+// const geometry = new THREE.BoxGeometry();
+// const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+// const cube = new THREE.Mesh(geometry, material);
+// scene.add(cube);
 
 const textureLoader = new THREE.TextureLoader();
 textureLoader.load('/static/imgs/bg_7.png', function (texture) {
@@ -158,6 +184,11 @@ socket.on('update_player', (data) => {
     updatePlayer(data);
 });
 
+socket.on('moved_figure', (data) => {
+    console.log('Moved FIGURE');
+    movePlayer(data);
+});
+
 //get add_figure form
 
 const addFigureForm = document.getElementById('add_figure_form');
@@ -171,3 +202,9 @@ addFigureForm.onsubmit = (e) => {
     // Emit message to server
     socket.emit('add_figure', { name, color, size });
 }
+
+setInterval(
+    () => {
+        console.log(playerinfo)
+    }, 2000
+)
