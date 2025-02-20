@@ -18,16 +18,13 @@ const renderer = new THREE.WebGLRenderer({ canvas: canvas });
 renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
 
 
-//Playerinfo
-let playerinfo = {
-    // {
-    //     name: 'Player 1',
-    //     color: 'blue',
-    //     size: 1,
-    //     x: 0,
-    //     y: 0,
-    // },    
+//world
+let world = {
+    'figures' : {},
+    'map' : 'static/imgs/bg_7.png'
 }
+
+let playerinfo = world.figures;
 const draggableObjects = [];
 
 //// CONTROLS
@@ -50,6 +47,8 @@ controls.mouseButtons = {
 // // Optionally adjust settings if needed:
 // controls.enableRotate = false; // This is already the default in MapControls
 // controls.zoomSpeed = 1.2;
+const textureLoader = new THREE.TextureLoader();
+
 
 
 // Create DragControls for the draggable objects
@@ -105,21 +104,17 @@ function makeCube(player) {
 }
 
 function updatePlayer(player) {
-    console.log('Updating player:', player);
-
-    console.log(
-        !(player.name in playerinfo)
-    )
-
-    if (!(player.name in playerinfo) || typeof playerinfo[player.name] !== 'object') {
-        playerinfo[player.name] = {}; // Ensure it's an object
+    // Check if the player's cube already exists
+    if (playerinfo[player.name] && playerinfo[player.name].cube_index !== undefined) {
+        // Update existing cube's position
+        movePlayer(player);
+        // Optionally update other properties if needed
+        Object.assign(playerinfo[player.name], player);
+    } else {
+        // Create a new cube if it doesn't exist
+        var cube_index = makeCube(player);
+        playerinfo[player.name] = { ...player, cube_index: cube_index };
     }
-
-    var cube_index = makeCube(player);
-    playerinfo[player.name]['cube_index'] = cube_index;
-
-    // Merge player data into the existing object
-    Object.assign(playerinfo[player.name], player);
 }
 
 
@@ -130,17 +125,38 @@ function movePlayer(player) {
     draggableObjects[i].position.z = player.y;
 }
 
-function updatePlayers(players) {
-    for (const player of players) {
+function updatePlayers(data) {
+    Object.values(data.figures).forEach(player => {
         updatePlayer(player);
-    }
-}
+    });
+  }
 
 function removePlayer(player) {
     const playerIndex = playerinfo.findIndex(p => p.name === player.name);
     playerinfo.splice(playerIndex, 1);
     // Remove cube from scene
     scene.remove(scene.children[playerIndex]);
+}
+
+function update_map(data) {
+    world.map = data;
+    textureLoader.load(`/${world.map}`, function (texture) {
+        const image = texture.image;
+        const aspectRatio = image.width / image.height;
+    
+        // Set plane dimensions to match image
+        const geometry = new THREE.PlaneGeometry(image.width / 70, image.height / 70);
+        const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+        const plane = new THREE.Mesh(geometry, material);
+        scene.add(plane);
+    
+        // Rotate the plane to lie flat
+        plane.rotation.x = -Math.PI / 2;
+    
+        // Adjust camera to fit image
+        camera.position.set(0, Math.max(image.width, image.height) / 250, 0);
+        camera.lookAt(0, 0, 0);
+    });
 }
 
 
@@ -150,24 +166,7 @@ function removePlayer(player) {
 // const cube = new THREE.Mesh(geometry, material);
 // scene.add(cube);
 
-const textureLoader = new THREE.TextureLoader();
-textureLoader.load('/static/imgs/bg_7.png', function (texture) {
-    const image = texture.image;
-    const aspectRatio = image.width / image.height;
 
-    // Set plane dimensions to match image
-    const geometry = new THREE.PlaneGeometry(image.width / 70, image.height / 70);
-    const material = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
-    const plane = new THREE.Mesh(geometry, material);
-    scene.add(plane);
-
-    // Rotate the plane to lie flat
-    plane.rotation.x = -Math.PI / 2;
-
-    // Adjust camera to fit image
-    camera.position.set(0, Math.max(image.width, image.height) / 250, 0);
-    camera.lookAt(0, 0, 0);
-});
 
 const animate = function () {
     requestAnimationFrame(animate);
@@ -180,13 +179,24 @@ animate();
 
 // Listen for messages from the server
 socket.on('update_player', (data) => {
-    console.log(data);
     updatePlayer(data);
 });
 
 socket.on('moved_figure', (data) => {
-    console.log('Moved FIGURE');
     movePlayer(data);
+});
+
+socket.on('updated_map', (data) => {
+    console.log("Update map ", data)
+    update_map(data);
+});
+
+socket.on('init', (data) => {
+    var map = data.map;
+
+    update_map(map);
+
+    updatePlayers(data);
 });
 
 //get add_figure form
@@ -205,6 +215,13 @@ addFigureForm.onsubmit = (e) => {
 
 setInterval(
     () => {
-        console.log(playerinfo)
+        console.log(world)
     }, 2000
 )
+
+document.addEventListener('DOMContentLoaded', (e) => {
+    if (socket != NaN) {
+        console.log('SOCKET ONLINE')
+        socket.emit('get_init')
+    }
+});

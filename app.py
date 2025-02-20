@@ -14,14 +14,20 @@ app.config['SECRET_KEY'] = 'mysecret'
 
 
 world = {
-    'figures': {}
+    'figures': {},
+    'map' : 'static/imgs/bg_7.png'
 }
-
-
 
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@socketio.on('get_init')
+def get_init():
+    print("Got init request", world)
+    time.sleep(0.1)
+    socketio.emit('init', world)
+
 
 @socketio.on('add_figure')
 def add_figure(data):
@@ -51,6 +57,14 @@ def add_figure(data):
 
     return redirect(url_for('index'))
 
+@socketio.on('update_map')
+def update_map(data):
+    update_map_(world['map'])
+
+
+def update_map_(data):
+    world['map'] = data if data else world['map']
+    socketio.emit('updated_map', world['map'])
 
 @socketio.on('move_figure')
 def move_figure(data):
@@ -65,7 +79,7 @@ def move_figure(data):
     print(
         f"{figure_name} moved to x: {figure_x}, y: {figure_y}"
     )
-
+    
     socketio.emit('moved_figure', figure)
 
 
@@ -82,12 +96,23 @@ def send_figures():
         emit('update_player', figure)
 
 
+#lock = threading.Lock()
 def update_thread():
     global world
 
     while True:
-        print(world)
-        time.sleep(5)
+        x = input('>')
+        if x is None:
+            time.sleep(1)
+        else:
+            match x:
+                case 'info':
+                    print(world)
+                case _ if x.startswith("update_map"):  # Fix case condition
+                    _, new_map = x.split(" ", 1)  # Split only once
+                    print("Updating map...")
+                    update_map_(new_map)
+
 
 
 if __name__ == '__main__':
