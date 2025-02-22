@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { DragControls } from 'three/addons/controls/DragControls.js';
 
 
+
 import { io } from 'socket.io-client';
 const socket = io('http://localhost:5000'); // Replace with your server URL if needed
 
@@ -89,6 +90,53 @@ function getPlayerNameByCubeIndex(cubeIndex) {
     return Object.keys(playerinfo).find(name => playerinfo[name]['cube_index'] === cubeIndex) || null;
 }
 
+function createTextLabel(text, options = {}, width_) {
+    // Set default options for the canvas dimensions and font size
+    const width = 256;  // default width
+    const height = 256; // default height
+    const fontSize = options.fontSize || '6em';
+    
+    // Create and setup canvas
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    
+    // Draw background
+    ctx.fillStyle = '#aaaaaa';
+    ctx.fillRect(0, 0, width, height);
+    
+    // Draw text (you can adjust alignment, font, etc. as needed)
+    ctx.fillStyle = '#000000';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.font = `bold ${fontSize} Arial`;
+    ctx.fillText(text, 0, 0.1 * height);
+    
+    // Create a texture from the canvas
+    const texture = new THREE.Texture(canvas);
+    texture.needsUpdate = true;
+    
+    // Create geometry for the label.
+    // Adjust the geometry dimensions to suit your needs.
+    const geometry = new THREE.BoxGeometry(1, 1, 0.1);
+    // Create a spine material for the sides of the label
+    const spineMat = new THREE.MeshPhongMaterial({ color: 0xa5800e });
+    // Use a basic material with the canvas texture for the front/back faces
+    const cvMaterial = new THREE.MeshBasicMaterial({ map: texture });
+    // Create a materials array: here we use spineMat for 4 sides and cvMaterial for 2 faces.
+    const materials = [ spineMat, spineMat, spineMat, spineMat, cvMaterial, cvMaterial ];
+    
+    // Create the mesh for the label
+    const labelMesh = new THREE.Mesh(geometry, materials);
+    
+    // Rotate the mesh so the text faces upward.
+    // (Depending on your scene setup, you might adjust this.)
+    labelMesh.rotation.x = -Math.PI / 2;
+    
+    return labelMesh;
+  }
+  
 
 function makeCube(player) {
     const geometry = new THREE.BoxGeometry(player.size, player.size, player.size);
@@ -96,6 +144,12 @@ function makeCube(player) {
     const cube = new THREE.Mesh(geometry, material);
     cube.position.set(player.x, 0, player.y);
     scene.add(cube);
+
+    const labelMesh = createTextLabel(player.name, {}, player.size);
+    // Position the label above the cube.
+    // The y-offset should be at least half the cube's height, plus any extra spacing.
+    labelMesh.position.set(1.5, player.size / 2 + 0.1, 0); // adjust 0.5 as needed
+    cube.add(labelMesh);
 
     draggableObjects.push(cube)
     
