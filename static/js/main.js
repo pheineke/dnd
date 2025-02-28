@@ -6,7 +6,7 @@ import { DragControls } from 'three/addons/controls/DragControls.js';
 
 
 import { io } from 'socket.io-client';
-const socket = io('http://localhost:5000'); // Replace with your server URL if needed
+const socket = io(); // Replace with your server URL if needed
 
 
 
